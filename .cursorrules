@@ -13,6 +13,7 @@ Development Principles:
 Testing code and submitting jobs:
 - You should be running on login05 (Rocky 9). Use hostname to check if you are on login04 (RHEL 7) or login05 (Rocky 9).
 - Terminate short commands (like cat) with Ctrl+C
+- When you encounter a problem, make sure you understand the cause before trying a different approach.
 - Run medium or large jobs by submitting sbatch commands, using the absolute path to the script. 
 - Check parameters like number of cpus and adjust based on any previous failures and anticipated requirements.
 - While a batch job is running, check log and err files to make sure it is running normally.
