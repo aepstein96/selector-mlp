@@ -1,0 +1,46 @@
+{
+    "restart": false,
+    "use_split": false,
+
+
+    "data": {
+        "adata_path": "raw_data/adata.h5ad",
+        "intermediate_path": "intermediate_files/split_folder",
+        "column": "Main_cluster_name",
+        "torch_sparsity_type": "dense",
+        "train_cluster_size": 5000,
+        "val_cluster_size": 1000,
+        "test_cluster_size": 1000
+    },
+    "dataloader": {
+        "batch_size": 256,
+        "num_workers": 4,
+        "shuffle_train": true,
+        "shuffle_val": false
+    },
+    "model": {
+        "selector_type": "std",
+        "L1_size": 512,
+        "L2_size": 128,
+        "L3_size": 64,
+        "leak_angle": 0.2
+    },
+    "training": {
+        "lr": 0.0003,
+        "weight_decay": 0.3,
+        "dropout": 0.3,
+        "batch_norm": false,
+        "noise_std": 0.2,
+        "max_epochs": 5,
+        "alpha": 0.05
+    },
+    "feature_selection": {
+        "group_size": 50,
+        "random_reps": 5,
+        "num_features": 100
+    },
+    "logging": {
+        "save_dir": "logs",
+        "name": "test"
+    }
+} 

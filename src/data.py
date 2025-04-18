@@ -1,23 +1,28 @@
+import scipy
+import torch
+from torch.utils.data import TensorDataset
+import numpy as np
+import os
 
-
-def createDataset(adata, y_column, sparse=True, sparse_type='CSR'):
-  if sparse:
-    if sparse_type == 'CSR':
-      X = scipy.sparse.csr_matrix(adata.X)
-      X = torch.sparse_csr_tensor(X.indptr, X.indices, X.data, X.shape, requires_grad=True)
-    elif sparse_type == 'COO':
-      X = scipy.sparse.coo_matrix(adata.X)
-      indices = np.vstack((X.row, X.col))
-      X = torch.sparse_coo_tensor(indices, X.data, X.shape, requires_grad=True)
-    else:
-      raise ValueError("Valid sparse_type is 'CSR' or 'COO'.")
-  else:
+def createDataset(adata, y_column, sparse_type='dense'):
+  if sparse_type == 'CSR':
+    X = scipy.sparse.csr_matrix(adata.X)
+    X = torch.sparse_csr_tensor(X.indptr, X.indices, X.data, X.shape, requires_grad=True)
+  elif sparse_type == 'COO':
+    X = scipy.sparse.coo_matrix(adata.X)
+    indices = np.vstack((X.row, X.col))
+    X = torch.sparse_coo_tensor(indices, X.data, X.shape, requires_grad=True);
+  elif sparse_type == 'dense':
     X = torch.from_numpy(adata.X.toarray())
+  else:
+    raise ValueError("Valid sparse_type is 'CSR', 'COO', or 'dense'.")
+    
   y_col = adata.obs[y_column]
   if y_col.dtype.name == 'category': # categorical data, e.g. clusters
     y = torch.from_numpy(y_col.cat.codes.values).long()
   else:
     y = torch.from_numpy(y_col.values).long()
+    
   return TensorDataset(X, y)
 
 # Balancing classes
@@ -26,9 +31,8 @@ def evenClusters(adata, col, max_train=5000, max_val=1000, max_test=1000):
   val_cells = []
   test_cells = []
   max_total_cells = max_train + max_val + max_test
-  for cluster, num in adata_full.obs[col].value_counts().iteritems():
+  for cluster, num_cells in adata.obs[col].value_counts().items():
     cluster_cells = adata.obs.index[adata.obs[col]==cluster].values
-    num_cells = cluster_cells.shape[0]
     cell_multiplier = min(1, num_cells/max_total_cells)
     train = int(max_train*cell_multiplier)
     val = int(max_val*cell_multiplier)
@@ -43,6 +47,20 @@ def evenClusters(adata, col, max_train=5000, max_val=1000, max_test=1000):
   adata_test = adata[np.concatenate(test_cells), :]
 
   return adata_train, adata_val, adata_test
+
+def splitData(adata, y_column, sparse_type='dense', save_dir=None, **kwargs):
+  adata_train, adata_val, adata_test = evenClusters(adata, y_column, **kwargs)
+  train_set = createDataset(adata_train, y_column, sparse_type)
+  val_set = createDataset(adata_val, y_column, sparse_type)
+  test_set = createDataset(adata_test, y_column, sparse_type)
+  
+  if save_dir:
+    os.makedirs(save_dir, exist_ok=True)
+    torch.save(train_set, os.path.join(save_dir, 'train.pt'))
+    torch.save(val_set, os.path.join(save_dir, 'val.pt'))
+    torch.save(test_set, os.path.join(save_dir, 'test.pt'))
+
+  return train_set, val_set, test_set
 
 def chooseFeatures(features, *datasets):
   out_list = []

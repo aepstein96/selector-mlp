@@ -1,3 +1,6 @@
+import json
+import os
+
 def getTestAccuracy(model, dataset, features=None):
   X, y = dataset.tensors
   if features is not None:
@@ -19,21 +22,56 @@ def getTestAccuracy(model, dataset, features=None):
   return accuracy, per_class_accuracy.mean()
 
 
+def load_config(config_path='src/config.json'):
+    """
+    Load configuration from JSON file
+    
+    Parameters:
+    -----------
+    config_path : str
+        Path to the configuration file
+        
+    Returns:
+    --------
+    dict
+        Configuration dictionary
+    """
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    return config
+
 def getLogs(folder, find_version=True):
+    """
+    Read logs from the specified folder
+    
+    Parameters:
+    -----------
+    folder : str
+        Path to the log folder
+    find_version : bool
+        Whether to find the latest version folder
+        
+    Returns:
+    --------
+    tuple
+        (logs_step, logs_epoch) DataFrames
+    """
+    import pandas as pd
+    import os
+    
+    if find_version:
+        versions = [f for f in os.listdir(folder) if f.startswith('version')]
+        versions.sort()
+        folder = os.path.join(folder, versions[-1])
 
-  if find_version:
-    versions = [f for f in os.listdir(folder) if f.startswith('version')]
-    versions.sort()
-    folder = os.path.join(folder, versions[-1])
+    print("Reading logs from %s..." % folder)
 
-  print("Reading logs from %s..." % folder)
+    logs = pd.read_csv(os.path.join(folder, "metrics.csv"))
+    logs.columns = [col.split('/')[0] for col in logs.columns]
 
-  logs = pd.read_csv(os.path.join(folder, "metrics.csv"))
-  logs.columns = [col.split('/')[0] for col in logs.columns]
+    logs_step = logs[logs['train_batch_loss'].notnull()].dropna(axis=1)
+    logs_step.set_index('step', inplace=True)
+    logs_epoch = logs[logs['val_eval_loss'].notnull()].dropna(axis=1)
+    logs_epoch.set_index('epoch', inplace=True)
 
-  logs_step = logs[logs['train_batch_loss'].notnull()].dropna(axis=1)
-  logs_step.set_index('step', inplace=True)
-  logs_epoch = logs[logs['val_eval_loss'].notnull()].dropna(axis=1)
-  logs_epoch.set_index('epoch', inplace=True)
-
-  return logs_step, logs_epoch
+    return logs_step, logs_epoch

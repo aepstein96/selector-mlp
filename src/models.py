@@ -1,4 +1,9 @@
 from torch import nn
+import torch
+import torch.optim as optim
+import torchmetrics
+import pytorch_lightning as pl
+import numpy as np
 
 class MultiClassifier(pl.LightningModule):
 
@@ -8,7 +13,7 @@ class MultiClassifier(pl.LightningModule):
     self.net = Net(num_features, num_classes, **net_args)
     self.optimizer = optimizer
     self.lossFunc = lossFunc
-    self.accFunc = torchmetrics.Accuracy()
+    self.accFunc = torchmetrics.Accuracy(task='multiclass', num_classes=num_classes)
 
   def forward(self, data): # Final predictions, including softmax
     return torch.softmax(self.net(data), dim=1)
@@ -79,13 +84,13 @@ class Selector(nn.Module):
 
 
 class SelectorMLP(nn.Module):
-    def __init__(self, num_features, num_classes, Selector=None,  batch_norm=True, reg_type='L1/L2', L1_size=512, L2_size=128, L3_size=64, leak_angle=0.2, dropout=0.3):
+    def __init__(self, num_features, num_classes, SelectorLayer=None,  batch_norm=True, reg_type='L1/L2', L1_size=512, L2_size=128, L3_size=64, leak_angle=0.2, dropout=0.3):
       super().__init__()
 
-      if Selector is None:
+      if SelectorLayer is None:
         self.selector = None
       else:
-        self.selector = Selector(num_features, std=1)
+        self.selector = SelectorLayer(num_features, std=1)
 
       self.reg_type = reg_type
 
