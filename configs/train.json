@@ -1,12 +1,11 @@
 {
     "restart": false,
-    "use_split": false,
-
+    "seed": 42,
+    "log_dir": "logs",
 
     "data": {
-        "adata_path": "raw_data/adata.h5ad",
-        "intermediate_path": "intermediate_files/split_folder",
-        "column": "Main_cluster_name",
+        "input_dir": "intermediate_files/split_data",
+        "y_column": "Main_cluster_name",
         "torch_sparsity_type": "dense",
         "train_cluster_size": 5000,
         "val_cluster_size": 1000,
@@ -19,11 +18,14 @@
         "shuffle_val": false
     },
     "model": {
+        "name": "SelectorMLP",
         "selector_type": "std",
         "L1_size": 512,
         "L2_size": 128,
         "L3_size": 64,
-        "leak_angle": 0.2
+        "leak_angle": 0.2,
+        "reg_type": "L1",
+        "batch_norm": true
     },
     "training": {
         "lr": 0.0003,
@@ -31,7 +33,7 @@
         "dropout": 0.3,
         "batch_norm": false,
         "noise_std": 0.2,
-        "max_epochs": 5,
+        "max_epochs": 100,
         "alpha": 0.05
     },
     "feature_selection": {
@@ -39,8 +41,14 @@
         "random_reps": 5,
         "num_features": 100
     },
-    "logging": {
-        "save_dir": "logs",
-        "name": "test"
+    "svm": {
+        "name": "SVM",
+        "loss": "hinge_squared",
+        "reg_type": "L1"
+    },
+    "checkpoint": {
+        "restart_run": "last",
+        "save_top_k": 3,
+        "save_last": true
     }
 } 

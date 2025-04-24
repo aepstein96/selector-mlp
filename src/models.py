@@ -13,8 +13,12 @@ class MultiClassifier(pl.LightningModule):
     self.net = Net(num_features, num_classes, **net_args)
     self.optimizer = optimizer
     self.lossFunc = lossFunc
-    self.accFunc = torchmetrics.Accuracy(task='multiclass', num_classes=num_classes)
-
+    self.accFunc = torchmetrics.Accuracy(task='multiclass', num_classes=num_classes, average='micro')
+    self.balanced_accFunc = torchmetrics.Accuracy(task='multiclass', num_classes=num_classes, average='macro')
+    
+  def save(self, path):
+    torch.save(self.net, path)
+    
   def forward(self, data): # Final predictions, including softmax
     return torch.softmax(self.net(data), dim=1)
 
@@ -35,66 +39,65 @@ class MultiClassifier(pl.LightningModule):
     y_pred = self.net(X)
     loss = self.lossFunc(y_pred, y)
     acc = self.accFunc(torch.softmax(y_pred, dim=1), y)
+    multiclass_acc = self.balanced_accFunc(torch.softmax(y_pred, dim=1), y)
+    
     if dataloader_idx == 0:
-      self.log('val_eval_loss', loss, on_step=False, on_epoch=True)
-      self.log('val_accuracy', acc, on_step=False, on_epoch=True)
+      self.log('val_eval_loss', loss, on_step=False, on_epoch=True, add_dataloader_idx=False)
+      self.log('val_accuracy', acc, on_step=False, on_epoch=True, add_dataloader_idx=False)
+      self.log('val_multiclass_accuracy', multiclass_acc, on_step=False, on_epoch=True, add_dataloader_idx=False)
     elif dataloader_idx == 1:
-      self.log('train_eval_loss', loss, on_step=False, on_epoch=True)
-      self.log('train_accuracy', acc, on_step=False, on_epoch=True)
-
+      self.log('train_eval_loss', loss, on_step=False, on_epoch=True, add_dataloader_idx=False)
+      self.log('train_accuracy', acc, on_step=False, on_epoch=True, add_dataloader_idx=False)
+      self.log('train_multiclass_accuracy', multiclass_acc, on_step=False, on_epoch=True, add_dataloader_idx=False)
+      
   def configure_optimizers(self):
     return self.optimizer(self.net.parameters(), lr=self.hparams.lr, betas=self.hparams.betas, weight_decay=self.hparams.weight_decay)
 
-
-class ClampedSelector(nn.Module):
-    def __init__(self, features: int, std=1, device=None, dtype=None):
-
-        #factory_kwargs = {'device': device, 'dtype': dtype}
-        super().__init__()
-        self.features = features
-        #self.weight = nn.Parameter(torch.empty(features), **factory_kwargs)
-        self.weight = nn.Parameter(torch.empty(features))
-        self.register_parameter('bias', None) # Not sure if this is necessary yet
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        nn.init.normal_(self.weight, mean=0, std=0.2)
-        self.weight.data = torch.abs(self.weight.data)
-    def forward(self, x):
-        self.weight.data = torch.clamp(self.weight.data, min=0, max=1) # Result will be between 0 and 1
-        return torch.mul(x, self.weight) # Element-wise multiplication
     
 # Modified torch.nn.Linear, borrowed from PyTorch github (https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/linear.py)
 # Has no bias, and weights are put through a sigmoid so the result is between 0 and 1
+# If clamp is True, weights are clamped between 0 and 1
 class Selector(nn.Module):
-    def __init__(self, features, std=1, device=None, dtype=None):
+    def __init__(self, features, std=None, clamp=False):
         super().__init__()
         self.features = features
         self.weight = nn.Parameter(torch.empty(features))
-        self.register_parameter('bias', None) # Not sure if this is necessary yet
-        self.reset_parameters(std)
+        self.register_parameter('bias', None)
+        self.clamp = clamp
+        self.std = std
+        if clamp and std is None:
+          self.std = 0.2 # default std for clamped selector
+          
+        self.reset_parameters()
 
     def reset_parameters(self, std):
         if std is None:
-            std=np.sqrt(self.features)
+          std = self.std
+            
         nn.init.normal_(self.weight, mean=0, std=std)
 
     def forward(self, x):
+        if self.clamp:
+            self.weight.data = torch.clamp(self.weight.data, min=0, max=1)
         return torch.mul(x, self.weight) # Element-wise multiplication
 
 
 class SelectorMLP(nn.Module):
-    def __init__(self, num_features, num_classes, SelectorLayer=None,  batch_norm=True, reg_type='L1/L2', L1_size=512, L2_size=128, L3_size=64, leak_angle=0.2, dropout=0.3):
+    def __init__(self, num_features, num_classes, selector_type=None,  batch_norm="true", reg_type='L1', L1_size=512, L2_size=128, L3_size=64, leak_angle=0.2, dropout=0.3):
       super().__init__()
 
-      if SelectorLayer is None:
-        self.selector = None
+      if selector_type is None or selector_type == "none":
+        self.selector = nn.Identity()
+      elif selector_type == 'clamped':
+        self.selector = Selector(num_features, clamp=True)
+      elif selector_type == 'std':
+        self.selector = Selector(num_features, clamp=False)
       else:
-        self.selector = SelectorLayer(num_features, std=1)
+        raise ValueError(f"Invalid selector type: {selector_type}")
 
       self.reg_type = reg_type
 
-      if batch_norm:
+      if batch_norm == "true":
         self.batch1 = nn.BatchNorm1d(L1_size)
         self.batch2 = nn.BatchNorm1d(L2_size)
         self.batch3 = nn.BatchNorm1d(L3_size)
@@ -112,9 +115,7 @@ class SelectorMLP(nn.Module):
       self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-      if self.selector is not None:
-        x = self.selector(x)
-
+      x = self.selector(x)
       x = self.dropout(self.relu(self.batch1(self.h1(x))))
       x = self.dropout(self.relu(self.batch2(self.h2(x))))
       x = self.dropout(self.relu(self.batch3(self.h3(x))))
@@ -124,12 +125,8 @@ class SelectorMLP(nn.Module):
       if self.selector is None or self.reg_type is None:
         return 0
       elif self.reg_type == 'L1':
-        L1 = torch.abs(self.selector.weight).sum()
-        return L1
+        return torch.abs(self.selector.weight).sum()
       elif self.reg_type == 'L2':
-        L2 = torch.sqrt((self.selector.weight**2).sum())
-        return L2
-      elif self.reg_type == 'L1/L2':
-        L1 = torch.abs(self.selector.weight).sum()
-        L2 = torch.sqrt((self.selector.weight**2).sum())
-        return L1/L2
+        return torch.sqrt((self.selector.weight**2).sum())
+      else:
+        raise ValueError(f"Invalid regularization type: {self.reg_type}")

@@ -4,19 +4,17 @@ from torch.utils.data import TensorDataset
 import numpy as np
 import os
 
-def createDataset(adata, y_column, sparse_type='dense'):
-  if sparse_type == 'CSR':
-    X = scipy.sparse.csr_matrix(adata.X)
-    X = torch.sparse_csr_tensor(X.indptr, X.indices, X.data, X.shape, requires_grad=True)
-  elif sparse_type == 'COO':
-    X = scipy.sparse.coo_matrix(adata.X)
-    indices = np.vstack((X.row, X.col))
-    X = torch.sparse_coo_tensor(indices, X.data, X.shape, requires_grad=True);
-  elif sparse_type == 'dense':
-    X = torch.from_numpy(adata.X.toarray())
+def createSVMDataset(adata, y_column):
+  X = adata.X.toarray()
+  y = adata.obs[y_column]
+  if y.dtype.name == 'category': # categorical data, e.g. clusters
+    y = y.cat.codes.values
   else:
-    raise ValueError("Valid sparse_type is 'CSR', 'COO', or 'dense'.")
-    
+    y = y.values
+  return X, y
+
+def createDataset(adata, y_column):
+  X = torch.from_numpy(adata.X.toarray())
   y_col = adata.obs[y_column]
   if y_col.dtype.name == 'category': # categorical data, e.g. clusters
     y = torch.from_numpy(y_col.cat.codes.values).long()

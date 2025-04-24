@@ -1,5 +1,8 @@
 import json
 import os
+import torch
+import sklearn
+from sklearn.metrics import confusion_matrix
 
 def getTestAccuracy(model, dataset, features=None):
   X, y = dataset.tensors
@@ -20,6 +23,28 @@ def getTestAccuracy(model, dataset, features=None):
   accuracy = (y==y_pred).sum()/y.shape[0]
   per_class_accuracy = confusion_matrix(y_pred, y, normalize='true').diagonal()
   return accuracy, per_class_accuracy.mean()
+
+
+def getBestCheckpoint(folder):
+    if not os.path.exists(folder):
+        print("Checkpoint directory %s does not exist" % folder)
+        return None
+    
+    best_checkpoints = []
+    for file in os.listdir(folder):
+        if file.endswith('.ckpt') and "last" not in file:
+            checkpoint_file = os.path.join(folder, file)
+            accuracy = float(file.split('accuracy=')[-1].split('.ckpt')[0])
+            best_checkpoints.append((accuracy, checkpoint_file))
+    
+    if best_checkpoints:
+        best_checkpoints.sort(reverse=True)
+        checkpoint_path = best_checkpoints[0][1]
+        print(f"Found checkpoint with accuracy {best_checkpoints[0][0]}: {checkpoint_path}")
+        return checkpoint_path
+    else:
+        print("No checkpoints in checkpoint directory %s" % folder)
+        return None
 
 
 def load_config(config_path='src/config.json'):

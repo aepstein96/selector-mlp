@@ -1,0 +1,11 @@
+sbatch --partition=hpc_a10_a \
+          --time=1:00:00 \
+          --nodes=1 \
+          --ntasks=1 \
+          --cpus-per-task=4 \
+          --mem=128G \
+          --gpus=a10:1 \
+          --job-name=SelectorMLP_train \
+          --output=logs/SelectorMLP/train.out \
+          --error=logs/SelectorMLP/train.err \
+          --wrap="source ~/.bashrc && conda activate torch && python src/train.py --config src/config.json --restart"  
