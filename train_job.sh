@@ -8,4 +8,4 @@ sbatch --partition=hpc_a10_a \
           --job-name=SelectorMLP_train \
           --output=logs/SelectorMLP/train.out \
           --error=logs/SelectorMLP/train.err \
-          --wrap="source ~/.bashrc && conda activate torch && python src/train.py --config src/config.json --restart"  
+          --wrap="source ~/.bashrc && conda activate torch && python src/train.py --config configs/train.json --restart"  

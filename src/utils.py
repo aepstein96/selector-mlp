@@ -5,24 +5,24 @@ import sklearn
 from sklearn.metrics import confusion_matrix
 
 def getTestAccuracy(model, dataset, features=None):
-  X, y = dataset.tensors
-  if features is not None:
-    filter = torch.zeros(X.shape[1])
-    filter[features.copy()] = 1
-    X = torch.mul(X, filter)
+    X, y = dataset.tensors
+    if features is not None:
+        filter = torch.zeros(X.shape[1])
+        filter[features.copy()] = 1
+        X = torch.mul(X, filter)
 
-  y = y.cpu().detach().numpy()
+    y = y.cpu().detach().numpy()
 
-  if type(model) == sklearn.svm._classes.LinearSVC:
-    X = X.cpu().detach().numpy()
-    y_pred = model.predict(X)
-  else:
-    with torch.no_grad():
-      model.eval()
-      y_pred = torch.softmax(model(X), dim=1).cpu().detach().numpy().argmax(axis=1)
-  accuracy = (y==y_pred).sum()/y.shape[0]
-  per_class_accuracy = confusion_matrix(y_pred, y, normalize='true').diagonal()
-  return accuracy, per_class_accuracy.mean()
+    if type(model) == sklearn.svm._classes.LinearSVC:
+        X = X.cpu().detach().numpy()
+        y_pred = model.predict(X)
+    else:
+        with torch.no_grad():
+            model.eval()
+            y_pred = torch.softmax(model(X), dim=1).cpu().detach().numpy().argmax(axis=1)
+    accuracy = (y==y_pred).sum()/y.shape[0]
+    per_class_accuracy = confusion_matrix(y_pred, y, normalize='true').diagonal()
+    return accuracy, per_class_accuracy.mean()
 
 
 def getBestCheckpoint(folder):
