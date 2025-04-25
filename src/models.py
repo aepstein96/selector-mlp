@@ -5,6 +5,9 @@ import torchmetrics
 import pytorch_lightning as pl
 import numpy as np
 
+# PyTorch Lightning wrapper for SelectorMLP model
+# In theory extensible to other deep multiclass classifiers, but not currently implemented
+# Handles training, validation, logging, and optimization
 class MultiClassifier(pl.LightningModule):
 
     def __init__(self, Net,  num_features, num_classes, lossFunc=nn.CrossEntropyLoss(), lr=0.001, alpha=0.01, noise_std=0, optimizer=optim.AdamW, betas=(0.9, 0.999), weight_decay=0.01, **net_args):
@@ -16,12 +19,14 @@ class MultiClassifier(pl.LightningModule):
         self.accFunc = torchmetrics.Accuracy(task='multiclass', num_classes=num_classes, average='micro')
         self.balanced_accFunc = torchmetrics.Accuracy(task='multiclass', num_classes=num_classes, average='macro')
         
+    # Save model to file
     def save(self, path):
         torch.save(self.net, path)
         
     def forward(self, data): # Final predictions, including softmax
         return torch.softmax(self.net(data), dim=1)
 
+    # Single training step with optional regularization
     def training_step(self, batch, batch_idx):
         X, y = batch
         y_pred = self.net(X + self.hparams.noise_std*torch.randn(X.shape, device=self.device))
@@ -33,6 +38,7 @@ class MultiClassifier(pl.LightningModule):
         self.log("train_batch_loss_term", loss_term, on_step=True, on_epoch=False)
         return loss
 
+    # Validation step - handles both validation and training evaluation
     # Dataloader idx 0: validation. Dataloader idx 1: training (optional)
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         X, y = batch
@@ -50,10 +56,12 @@ class MultiClassifier(pl.LightningModule):
             self.log('train_accuracy', acc, on_step=False, on_epoch=True, add_dataloader_idx=False)
             self.log('train_multiclass_accuracy', multiclass_acc, on_step=False, on_epoch=True, add_dataloader_idx=False)
             
+    # Configure optimizer with hyperparameters
     def configure_optimizers(self):
         return self.optimizer(self.net.parameters(), lr=self.hparams.lr, betas=self.hparams.betas, weight_decay=self.hparams.weight_decay)
 
     
+# Feature selector layer that applies weights to input features
 # Modified torch.nn.Linear, borrowed from PyTorch github (https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/linear.py)
 # Has no bias, and weights are put through a sigmoid so the result is between 0 and 1
 # If clamp is True, weights are clamped between 0 and 1
@@ -74,22 +82,27 @@ class Selector(nn.Module):
             
         self.reset_parameters()
 
+    # Initialize weights with normal distribution
     def reset_parameters(self, std=None):
         if std is None:
             std = self.std
             
         nn.init.normal_(self.weight, mean=0, std=std)
 
+    # Apply feature weights to input via element-wise multiplication
     def forward(self, x):
         if self.clamp:
             self.weight.data = torch.clamp(self.weight.data, min=0, max=1)
         return torch.mul(x, self.weight) # Element-wise multiplication
 
 
+# MLP with optional feature selection layer
+# Implements a three-layer network with configurable regularization
 class SelectorMLP(nn.Module):
     def __init__(self, num_features, num_classes, selector_type=None,  batch_norm="true", reg_type='L1', L1_size=512, L2_size=128, L3_size=64, leak_angle=0.2, dropout=0.3):
         super().__init__()
 
+        # Initialize selector layer based on specified type
         if selector_type is None or selector_type == "none":
             self.selector = nn.Identity()
         elif selector_type == 'clamped':
@@ -101,6 +114,7 @@ class SelectorMLP(nn.Module):
 
         self.reg_type = reg_type
 
+        # Configure batch normalization layers
         if batch_norm == "true":
             self.batch1 = nn.BatchNorm1d(L1_size)
             self.batch2 = nn.BatchNorm1d(L2_size)
@@ -110,6 +124,7 @@ class SelectorMLP(nn.Module):
             self.batch2 = nn.Identity()
             self.batch3 = nn.Identity()
 
+        # Define network layers
         self.h1 = nn.Linear(num_features, L1_size)
         self.h2 = nn.Linear(L1_size, L2_size)
         self.h3 = nn.Linear(L2_size, L3_size)
@@ -125,6 +140,8 @@ class SelectorMLP(nn.Module):
         x = self.dropout(self.relu(self.batch3(self.h3(x))))
         return self.out(x)
 
+    # Regularize the selector weights
+    # Used to minimize the number of features/genes the model depends on
     def regularize(self):
         if self.selector is None or self.reg_type is None:
             return 0

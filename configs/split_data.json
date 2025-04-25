@@ -4,5 +4,7 @@
     "train_cluster_size": 5000,
     "val_cluster_size": 1000,
     "test_cluster_size": 1000,
-    "save_dir": "intermediate_files/split_data"
+    "save_dir": "intermediate_files/split_data",
+    "shuffle": true,
+    "shuffle_seed": 42
 }

@@ -4,6 +4,7 @@ import torch
 import sklearn
 from sklearn.metrics import confusion_matrix
 
+# Get accuracy (overall and mean per-class) for a model/dataset pair
 def getTestAccuracy(model, dataset, features=None):
     X, y = dataset.tensors
     if features is not None:
@@ -25,6 +26,7 @@ def getTestAccuracy(model, dataset, features=None):
     return accuracy, per_class_accuracy.mean()
 
 
+# Find best checkpoint in a directory based on accuracy value in filename
 def getBestCheckpoint(folder):
     if not os.path.exists(folder):
         print("Checkpoint directory %s does not exist" % folder)
@@ -47,40 +49,15 @@ def getBestCheckpoint(folder):
         return None
 
 
+# Load configuration from JSON file
 def load_config(config_path='src/config.json'):
-    """
-    Load configuration from JSON file
-    
-    Parameters:
-    -----------
-    config_path : str
-        Path to the configuration file
-        
-    Returns:
-    --------
-    dict
-        Configuration dictionary
-    """
     with open(config_path, 'r') as f:
         config = json.load(f)
     return config
 
+# Read and parse training logs from specified folder
+# If find_version is True, automatically finds the latest version directory
 def getLogs(folder, find_version=True):
-    """
-    Read logs from the specified folder
-    
-    Parameters:
-    -----------
-    folder : str
-        Path to the log folder
-    find_version : bool
-        Whether to find the latest version folder
-        
-    Returns:
-    --------
-    tuple
-        (logs_step, logs_epoch) DataFrames
-    """
     import pandas as pd
     import os
     
@@ -94,6 +71,7 @@ def getLogs(folder, find_version=True):
     logs = pd.read_csv(os.path.join(folder, "metrics.csv"))
     logs.columns = [col.split('/')[0] for col in logs.columns]
 
+    # Split logs into per-step and per-epoch dataframes
     logs_step = logs[logs['train_batch_loss'].notnull()].dropna(axis=1)
     logs_step.set_index('step', inplace=True)
     logs_epoch = logs[logs['val_eval_loss'].notnull()].dropna(axis=1)

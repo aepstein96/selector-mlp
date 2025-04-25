@@ -1,5 +1,3 @@
-import os
-import torch
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from anndata import read_h5ad
@@ -8,13 +6,16 @@ from sklearn.metrics import accuracy_score, balanced_accuracy_score
 from data import createDataset, createSVMDataset
 from models import MultiClassifier, SelectorMLP
 import pickle
-import scanpy as sc
 import json
 import argparse
 import os
 from datetime import datetime
 from utils import getBestCheckpoint
+from visualization import plotTrainingResults
+import pandas as pd
 
+# Train a LinearSVC model on AnnData with logging and model saving
+# Used as a baseline for comparison with SelectorMLP
 def trainSVM(config):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     start_time = datetime.now()
@@ -72,6 +73,7 @@ def trainSVM(config):
     return model, val_accuracy
 
 
+# Train a SelectorMLP model using PyTorch Lightning with checkpointing and visualization
 def trainSelectorMLP(config):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     start_time = datetime.now()
@@ -114,13 +116,13 @@ def trainSelectorMLP(config):
     num_features = train_set.tensors[0].shape[1]
     num_classes = len(train_set.tensors[1].unique())
     
-    # Set up loggers - use consistent base directory for all runs with the same name
+    # Set up logging directories
     base_dir = os.path.join(config["log_dir"], f"{config['model']['name']}")
     os.makedirs(base_dir, exist_ok=True)
     
     # Use timestamp for the version name in the logger
-    logger1 = pl.loggers.TensorBoardLogger(save_dir=base_dir, version=timestamp)
-    logger2 = pl.loggers.CSVLogger(save_dir=base_dir, version=timestamp)
+    logger1 = pl.loggers.TensorBoardLogger(save_dir=base_dir, name="", version=timestamp)
+    logger2 = pl.loggers.CSVLogger(save_dir=base_dir, name="", version=timestamp)
     
     # Path for this run's outputs
     run_dir = os.path.join(base_dir, timestamp)
@@ -128,7 +130,7 @@ def trainSelectorMLP(config):
     
     # Check for checkpoint to restart from
     checkpoint_path = None
-    checkpoint_dir = os.path.join(base_dir, "checkpoints")
+    checkpoint_dir = config['checkpoint']['dir']
     os.makedirs(checkpoint_dir, exist_ok=True)
     if config["restart"]:
         print("Restart enabled, searching for best checkpoint...")
@@ -143,6 +145,7 @@ def trainSelectorMLP(config):
         
         checkpoint_path = getBestCheckpoint(pre_checkpoint_dir)
         
+    # Initialize model from checkpoint or create new one
     if checkpoint_path:
         model = MultiClassifier.load_from_checkpoint(checkpoint_path)
     else:
@@ -187,7 +190,7 @@ def trainSelectorMLP(config):
     val_metrics = trainer.callback_metrics
     best_model_path = checkpoint_callback.best_model_path
     
-    # Save log in the run directory with timestamp
+    # Save training log with details
     logfile = os.path.join(run_dir, f"training_log.txt")
     with open(logfile, 'w') as f:
         f.write(f"Training start time: {timestamp}\n")
@@ -199,8 +202,17 @@ def trainSelectorMLP(config):
         f.write(f"Model: {model}\n\n")
         if checkpoint_path and config["restart"]:
             f.write(f"Restarted from: {checkpoint_path}\n\n")
-        
-    # Save model with timestamp in the run directory
+    
+    # Generate and save visualizations
+    csv_logger = trainer.loggers[1]  # The CSVLogger is the second logger
+    metrics_df = pd.read_csv(os.path.join(csv_logger.log_dir, "metrics.csv"))
+    
+    # Create and save training plots
+    accuracy_plot, loss_plot = plotTrainingResults(metrics_df=metrics_df)
+    accuracy_plot.figure.savefig(os.path.join(run_dir, "accuracy_plot.png"))
+    loss_plot.figure.savefig(os.path.join(run_dir, "loss_plot.png"))
+    
+    # Save final model
     save_path = os.path.join(run_dir, f"final_model.pkl")
     model.save(save_path)
         
@@ -229,5 +241,5 @@ if __name__ == "__main__":
     # Train the selected model type
     if args.model_type == "svm":
         trainSVM(config)
-    else:  # selector_mlp
+    else:  # SelectorMLP
         trainSelectorMLP(config) 

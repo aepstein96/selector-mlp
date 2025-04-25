@@ -4,6 +4,7 @@ import json
 from anndata import read_h5ad
 import os
 
+# Split AnnData object into train/val/test sets with balanced classes and save to disk
 def splitData(config):
     adata = read_h5ad(config["adata_path"])
     adata_train, adata_val, adata_test = evenClusters(
@@ -11,7 +12,9 @@ def splitData(config):
         config['y_column'],
         max_train=config['train_cluster_size'],
         max_val=config['val_cluster_size'], 
-        max_test=config['test_cluster_size']
+        max_test=config['test_cluster_size'],
+        shuffle=config['shuffle'],
+        shuffle_seed=config['shuffle_seed']
     )
     
     save_dir = config['save_dir']

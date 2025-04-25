@@ -1,6 +1,5 @@
 {
     "restart": false,
-    "seed": 42,
     "log_dir": "logs",
 
     "data": {
@@ -33,13 +32,8 @@
         "dropout": 0.3,
         "batch_norm": false,
         "noise_std": 0.2,
-        "max_epochs": 100,
+        "max_epochs": 50,
         "alpha": 0.05
-    },
-    "feature_selection": {
-        "group_size": 50,
-        "random_reps": 5,
-        "num_features": 100
     },
     "svm": {
         "name": "SVM",
@@ -47,6 +41,7 @@
         "reg_type": "L1"
     },
     "checkpoint": {
+        "dir": "checkpoints",
         "restart_run": "last",
         "save_top_k": 3,
         "save_last": true

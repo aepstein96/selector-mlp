@@ -16,7 +16,8 @@ import pandas as pd
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
 from torchmetrics import Accuracy
 from data import createDataset
-import matplotlib.pyplot as plt
+from visualization import plotFeatureSelectionResults
+
 # Select features using a selector MLP
 # Must have a selector layer (will not work with regular MLP)
 # In this case, feature selection can be done by setting the weights of the unselected features to zero within the model
@@ -89,6 +90,8 @@ def filterFeaturesMLP(feat_nums, indices, model, X, y):
         return accs, per_class_accs
 
 
+# Main feature selection test function that evaluates model performance with different feature subsets
+# Compares performance when using top features vs. randomly selected features
 def testFeatureSelection(config):
     # Load model    
     if os.path.isdir(config['model_path']):
@@ -113,7 +116,7 @@ def testFeatureSelection(config):
     X, y = dataset.tensors
     num_classes = len(torch.unique(y))
     
-    # Perform feature selection
+    # Perform feature selection (algorithm depends on model type)
     if isinstance(model, SVC):
         model_type = "svm"
         weight_abs = np.abs(model.coef_).sum(axis=0)
@@ -152,11 +155,8 @@ def testFeatureSelection(config):
     os.makedirs(config['results_dir'], exist_ok=True)
     print(f"Saving results to {config['results_dir']}")
     results = pd.DataFrame({'Accuracy (selected features)': accs_sorted, 'Accuracy (random features)': accs_random, 'Mean per-class acc. (selected)': per_class_accs_sorted, 'Mean per-class acc. (random)': per_class_accs_random}, index=feat_nums)
-    plt = results.plot()
-    plt.set_xlabel('Number of features selected')
-    plt.set_ylabel('Accuracy') 
-    plt.set_ylim(0, 1)
-    plt.figure.savefig(os.path.join(config['results_dir'], f"{model_type}_feature_selection_results.png"))
+    results_plot = plotFeatureSelectionResults(results)
+    results_plot.figure.savefig(os.path.join(config['results_dir'], f"{model_type}_feature_selection_results.png"))
     results.to_csv(os.path.join(config['results_dir'], f"{model_type}_feature_selection_results.csv"), index=True)
     print("Results saved")
 
