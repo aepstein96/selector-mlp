@@ -94,13 +94,7 @@ def filterFeaturesMLP(feat_nums, indices, model, X, y):
 # Compares performance when using top features vs. randomly selected features
 def testFeatureSelection(config):
     # Load model    
-    if os.path.isdir(config['model_path']):
-        model_path = getBestCheckpoint(config['model_path'])
-        if model_path is None:
-            raise ValueError("No model found in checkpoint directory")
-        model = MultiClassifier.load_from_checkpoint(model_path).net
-        
-    elif os.path.splitext(config['model_path'])[1] == '.pkl' or os.path.splitext(config['model_path'])[1] == '.pickle':
+    if os.path.splitext(config['model_path'])[1] == '.pkl' or os.path.splitext(config['model_path'])[1] == '.pickle':
         model = pickle.load(open(config['model_path'], 'rb'))
         
     elif os.path.splitext(config['model_path'])[1] == '.ckpt':
@@ -162,7 +156,7 @@ def testFeatureSelection(config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_path", type=str, default=None, help="Path to the model (folder of .ckpt, or .ckpt or .pkl/.pickle file)")
+    parser.add_argument("--model_path", type=str, default=None, help="Path to the model (.ckpt or .pkl/.pickle file)")
     parser.add_argument("--config", type=str, default="configs/feature_selection.json", help="Path to the evaluation configuration file")
     args = parser.parse_args()
     

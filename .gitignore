@@ -1,5 +1,6 @@
 raw_data/*
 !raw_data/.gitkeep
+checkpoints/*
 
 results/*
 !results/.gitkeep
@@ -7,6 +8,7 @@ results/*
 intermediate_files
 logs/*
 !logs/.gitkeep
+logs_old/*
 
 *.log
 *.log.*
@@ -14,6 +16,11 @@ logs/*
 *.err.*
 *.out
 *.out.*
+*.h5ad
+*.h5ad.gz
+*.pt
+*.pkl
+*.csv
 
-
-
+__pycache__/*
+*.pyc

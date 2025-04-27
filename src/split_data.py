@@ -4,6 +4,8 @@ import json
 from anndata import read_h5ad
 import os
 
+
+
 # Split AnnData object into train/val/test sets with balanced classes and save to disk
 def splitData(config):
     adata = read_h5ad(config["adata_path"])
@@ -31,5 +33,5 @@ if __name__ == "__main__":
     with open(args.config, "r") as f:
         config = json.load(f)
     
-    splitData(config)
+    splitData_old(config)
         

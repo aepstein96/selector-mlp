@@ -4,5 +4,5 @@
   "y_column": "Main_cluster_name",
   "group_size": 50,
   "random_reps": 5,
-  "results_dir": "results/feature_selection"
+  "results_dir": "feature_selection_results"
 }

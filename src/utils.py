@@ -29,24 +29,31 @@ def getTestAccuracy(model, dataset, features=None):
 # Find best checkpoint in a directory based on accuracy value in filename
 def getBestCheckpoint(folder):
     if not os.path.exists(folder):
-        print("Checkpoint directory %s does not exist" % folder)
+        print(f"Checkpoint directory {folder} does not exist")
         return None
     
     best_checkpoints = []
     for file in os.listdir(folder):
-        if file.endswith('.ckpt') and "last" not in file:
+        if file.endswith('.ckpt'):
             checkpoint_file = os.path.join(folder, file)
-            accuracy = float(file.split('accuracy=')[-1].split('.ckpt')[0])
-            best_checkpoints.append((accuracy, checkpoint_file))
+            if "accuracy" in file:
+                accuracy = float(file.split('accuracy=')[-1].split('.ckpt')[0])        
+                best_checkpoints.append((accuracy, checkpoint_file))
     
     if best_checkpoints:
         best_checkpoints.sort(reverse=True)
         checkpoint_path = best_checkpoints[0][1]
         print(f"Found checkpoint with accuracy {best_checkpoints[0][0]}: {checkpoint_path}")
         return checkpoint_path
-    else:
-        print("No checkpoints in checkpoint directory %s" % folder)
-        return None
+    
+    # If no accuracy checkpoints found, try using the last checkpoint
+    last_checkpoint = os.path.join(folder, "last.ckpt")
+    if os.path.exists(last_checkpoint):
+        print(f"Using last checkpoint: {last_checkpoint}")
+        return last_checkpoint
+    
+    print(f"No checkpoints in checkpoint directory {folder}")
+    return None
 
 
 # Load configuration from JSON file
@@ -57,18 +64,29 @@ def load_config(config_path='src/config.json'):
 
 # Read and parse training logs from specified folder
 # If find_version is True, automatically finds the latest version directory
-def getLogs(folder, find_version=True):
+def getLogs(folder, find_version=False):
     import pandas as pd
     import os
     
     if find_version:
         versions = [f for f in os.listdir(folder) if f.startswith('version')]
         versions.sort()
-        folder = os.path.join(folder, versions[-1])
+        if versions:
+            folder = os.path.join(folder, versions[-1])
+        else:
+            # Look for "current" directory 
+            current_dir = os.path.join(folder, "current")
+            if os.path.exists(current_dir):
+                folder = current_dir
 
     print("Reading logs from %s..." % folder)
 
-    logs = pd.read_csv(os.path.join(folder, "metrics.csv"))
+    metrics_path = os.path.join(folder, "metrics.csv")
+    if not os.path.exists(metrics_path):
+        print(f"Metrics file not found at {metrics_path}")
+        return None, None
+        
+    logs = pd.read_csv(metrics_path)
     logs.columns = [col.split('/')[0] for col in logs.columns]
 
     # Split logs into per-step and per-epoch dataframes

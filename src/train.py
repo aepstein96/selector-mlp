@@ -10,14 +10,14 @@ import json
 import argparse
 import os
 from datetime import datetime
-from utils import getBestCheckpoint
 from visualization import plotTrainingResults
 import pandas as pd
+import shutil
+import torch
 
 # Train a LinearSVC model on AnnData with logging and model saving
 # Used as a baseline for comparison with SelectorMLP
 def trainSVM(config):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     start_time = datetime.now()
 
     # Load data
@@ -29,7 +29,7 @@ def trainSVM(config):
     
     # Train SVM with SVM-specific parameters if available
     penalty = config["svm"].get("penalty", config["model"]["reg_type"].lower())
-    loss = config["svm"].get("loss", 'squared_hinge')
+    loss = config["svm"].get("loss", 'hinge_squared')
     dual = config["svm"].get("dual", False)
     C = config["svm"].get("C", 1.0)
     
@@ -40,16 +40,16 @@ def trainSVM(config):
     train_balanced_accuracy = balanced_accuracy_score(y_train, model.predict(X_train))
     val_balanced_accuracy = balanced_accuracy_score(y_val, model.predict(X_val))
     
-    # Set up loggers - use consistent base directory for all runs with the same name
-    run_dir = os.path.join(config['log_dir'], f"{config['svm']['name']}_{timestamp}")
-    os.makedirs(run_dir, exist_ok=True)
+    # Set up fixed directory for SVM
+    base_dir = os.path.join(config['log_dir'], f"{config['svm']['name']}")
+    os.makedirs(base_dir, exist_ok=True)
     
-    # Save logs and model with timestamp
-    logfile = os.path.join(run_dir, f"training_log.txt")
+    # Save logs and model
+    logfile = os.path.join(base_dir, f"training_log.txt")
     end_time = datetime.now()
     with open(logfile, 'w') as f:
-        f.write(f"Training start time: {timestamp}\n")
-        f.write(f"Training end time: {end_time.strftime('%Y%m%d_%H%M%S')}\n")
+        f.write(f"Training start time: {start_time}\n")
+        f.write(f"Training end time: {end_time}\n")
         f.write(f"Training duration: {end_time - start_time}\n")
         f.write(f"Train accuracy: {train_accuracy:.4f}\n")
         f.write(f"Validation accuracy: {val_accuracy:.4f}\n")
@@ -64,7 +64,7 @@ def trainSVM(config):
         f.write(f"Model: {model}\n\n")
     
     # Save model in the run directory
-    save_path = os.path.join(run_dir, f"model.pkl")
+    save_path = os.path.join(base_dir, f"model.pkl")
     with open(save_path, 'wb') as f:
         pickle.dump(model, f)
     
@@ -75,7 +75,6 @@ def trainSVM(config):
 
 # Train a SelectorMLP model using PyTorch Lightning with checkpointing and visualization
 def trainSelectorMLP(config):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     start_time = datetime.now()
 
     # Load data
@@ -116,35 +115,33 @@ def trainSelectorMLP(config):
     num_features = train_set.tensors[0].shape[1]
     num_classes = len(train_set.tensors[1].unique())
     
-    # Set up logging directories
+    # Set up loggers
     base_dir = os.path.join(config["log_dir"], f"{config['model']['name']}")
     os.makedirs(base_dir, exist_ok=True)
     
-    # Use timestamp for the version name in the logger
-    logger1 = pl.loggers.TensorBoardLogger(save_dir=base_dir, name="", version=timestamp)
-    logger2 = pl.loggers.CSVLogger(save_dir=base_dir, name="", version=timestamp)
-    
-    # Path for this run's outputs
-    run_dir = os.path.join(base_dir, timestamp)
-    os.makedirs(run_dir, exist_ok=True)
+    # Create first logger and let it auto-generate the version
+    logger1 = pl.loggers.TensorBoardLogger(save_dir=base_dir, name="")
+    # Get the version that was auto-generated
+    version = logger1.version
+    # Create second logger with the same version
+    logger2 = pl.loggers.CSVLogger(save_dir=base_dir, name="", version=version)
     
     # Check for checkpoint to restart from
     checkpoint_path = None
-    checkpoint_dir = config['checkpoint']['dir']
+    # Create checkpoint directory with same version as logger
+    checkpoint_dir = os.path.join(config['checkpoint']['dir'], f"version_{version}")
     os.makedirs(checkpoint_dir, exist_ok=True)
+    
     if config["restart"]:
-        print("Restart enabled, searching for best checkpoint...")
-        
-        # Look for checkpoints
-        if config['checkpoint']['restart_run'] == 'last':
-            # Find most recent timestamp directory
-            timestamp_dirs = [d for d in os.listdir(checkpoint_dir) if os.path.isdir(os.path.join(checkpoint_dir, d))]
-            pre_checkpoint_dir = os.path.join(checkpoint_dir, max(timestamp_dirs)) if timestamp_dirs else ""
+        print("Restart enabled, looking for last checkpoint...")
+        # First check if last.ckpt exists
+        last_checkpoint_path = os.path.join(checkpoint_dir, "last.ckpt")
+        if os.path.exists(last_checkpoint_path):
+            checkpoint_path = last_checkpoint_path
+            print(f"Found last checkpoint: {checkpoint_path}")
         else:
-            pre_checkpoint_dir = os.path.join(checkpoint_dir, config['checkpoint']['restart_run'])
-        
-        checkpoint_path = getBestCheckpoint(pre_checkpoint_dir)
-        
+            print("No checkpoints found, starting from scratch")
+    
     # Initialize model from checkpoint or create new one
     if checkpoint_path:
         model = MultiClassifier.load_from_checkpoint(checkpoint_path)
@@ -165,9 +162,9 @@ def trainSelectorMLP(config):
     
     # Set up checkpoint callback
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        dirpath=os.path.join(checkpoint_dir, timestamp),
-        filename="{epoch:02d}-{val_accuracy:.4f}",
-        monitor='val_accuracy',
+        dirpath=checkpoint_dir,
+        filename="{epoch:02d}-{val_multiclass_accuracy:.4f}",
+        monitor='val_multiclass_accuracy',
         mode='max',
         save_top_k=config["checkpoint"]["save_top_k"],
         save_last=config["checkpoint"]["save_last"],
@@ -179,7 +176,8 @@ def trainSelectorMLP(config):
         accelerator='gpu', 
         logger=[logger1, logger2], 
         callbacks=[checkpoint_callback],
-        default_root_dir=base_dir
+        default_root_dir=base_dir,
+        enable_progress_bar=False
     )
     
     trainer.fit(model, train_loader, [val_loader, train_eval_loader])
@@ -189,12 +187,18 @@ def trainSelectorMLP(config):
     # Get validation metrics and best model path
     val_metrics = trainer.callback_metrics
     best_model_path = checkpoint_callback.best_model_path
-    
+
+    # Create a copy of the best model with a fixed name for easy reference
+    if best_model_path and os.path.exists(best_model_path):
+        current_model_path = os.path.join(config['checkpoint']['dir'], "current.ckpt")
+        shutil.copy2(best_model_path, current_model_path)
+        print(f"Copied best model to fixed path: {current_model_path}")
+
     # Save training log with details
-    logfile = os.path.join(run_dir, f"training_log.txt")
+    logfile = os.path.join(base_dir, f"training_log.txt")
     with open(logfile, 'w') as f:
-        f.write(f"Training start time: {timestamp}\n")
-        f.write(f"Training end time: {end_time.strftime('%Y%m%d_%H%M%S')}\n")
+        f.write(f"Training start time: {start_time}\n")
+        f.write(f"Training end time: {end_time}\n")
         f.write(f"Training duration: {end_time - start_time}\n")
         f.write(f"Validation metrics: {val_metrics}\n\n")
         f.write(f"Best model path: {best_model_path}\n\n")
@@ -209,11 +213,11 @@ def trainSelectorMLP(config):
     
     # Create and save training plots
     accuracy_plot, loss_plot = plotTrainingResults(metrics_df=metrics_df)
-    accuracy_plot.figure.savefig(os.path.join(run_dir, "accuracy_plot.png"))
-    loss_plot.figure.savefig(os.path.join(run_dir, "loss_plot.png"))
+    accuracy_plot.figure.savefig(os.path.join(base_dir, "accuracy_plot.png"))
+    loss_plot.figure.savefig(os.path.join(base_dir, "loss_plot.png"))
     
     # Save final model
-    save_path = os.path.join(run_dir, f"final_model.pkl")
+    save_path = os.path.join(base_dir, f"final_model.pkl")
     model.save(save_path)
         
     print(f"Training complete! Best model saved at: {best_model_path}")

@@ -32,12 +32,12 @@
         "dropout": 0.3,
         "batch_norm": false,
         "noise_std": 0.2,
-        "max_epochs": 50,
+        "max_epochs": 20,
         "alpha": 0.05
     },
     "svm": {
         "name": "SVM",
-        "loss": "hinge_squared",
+        "loss": "squared_hinge",
         "reg_type": "L1"
     },
     "checkpoint": {

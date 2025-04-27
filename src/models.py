@@ -41,11 +41,12 @@ class MultiClassifier(pl.LightningModule):
     # Validation step - handles both validation and training evaluation
     # Dataloader idx 0: validation. Dataloader idx 1: training (optional)
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        print(f"Model in training mode for validation step: {self.training}")  # Should print False if in eval mode
         X, y = batch
         y_pred = self.net(X)
         loss = self.lossFunc(y_pred, y)
-        acc = self.accFunc(torch.softmax(y_pred, dim=1), y)
-        multiclass_acc = self.balanced_accFunc(torch.softmax(y_pred, dim=1), y)
+        acc = self.accFunc(y_pred, y)
+        multiclass_acc = self.balanced_accFunc(y_pred, y)
         
         if dataloader_idx == 0:
             self.log('val_eval_loss', loss, on_step=False, on_epoch=True, add_dataloader_idx=False)
@@ -88,6 +89,10 @@ class Selector(nn.Module):
             std = self.std
             
         nn.init.normal_(self.weight, mean=0, std=std)
+        
+        # Apply absolute value to weights during initialization if clamped
+        if self.clamp:
+            self.weight.data = torch.abs(self.weight.data)
 
     # Apply feature weights to input via element-wise multiplication
     def forward(self, x):
@@ -104,7 +109,7 @@ class SelectorMLP(nn.Module):
 
         # Initialize selector layer based on specified type
         if selector_type is None or selector_type == "none":
-            self.selector = nn.Identity()
+            self.selector = None
         elif selector_type == 'clamped':
             self.selector = Selector(num_features, clamp=True)
         elif selector_type == 'std':
@@ -134,7 +139,9 @@ class SelectorMLP(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        x = self.selector(x)
+        if self.selector is not None:
+            x = self.selector(x)
+            
         x = self.dropout(self.relu(self.batch1(self.h1(x))))
         x = self.dropout(self.relu(self.batch2(self.h2(x))))
         x = self.dropout(self.relu(self.batch3(self.h3(x))))
