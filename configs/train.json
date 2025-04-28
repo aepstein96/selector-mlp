@@ -1,6 +1,7 @@
 {
     "restart": false,
     "log_dir": "logs",
+    "trained_models_dir": "trained_models",
 
     "data": {
         "input_dir": "intermediate_files/split_data",
@@ -23,7 +24,7 @@
         "L2_size": 128,
         "L3_size": 64,
         "leak_angle": 0.2,
-        "reg_type": "L1",
+        "penalty": "L1",
         "batch_norm": true
     },
     "training": {
@@ -32,16 +33,17 @@
         "dropout": 0.3,
         "batch_norm": false,
         "noise_std": 0.2,
-        "max_epochs": 20,
+        "max_epochs": 50,
         "alpha": 0.05
     },
     "svm": {
-        "name": "SVM",
         "loss": "squared_hinge",
-        "reg_type": "L1"
+        "penalty": "L1",
+        "dual": false,
+        "C": 1.0
     },
     "checkpoint": {
-        "dir": "checkpoints",
+        "dir": "trained_models/checkpoints",
         "restart_run": "last",
         "save_top_k": 3,
         "save_last": true

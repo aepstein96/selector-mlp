@@ -3,15 +3,24 @@ import argparse
 import json
 from anndata import read_h5ad
 import os
-
-
+import numpy as np
+# Balancing classes
 
 # Split AnnData object into train/val/test sets with balanced classes and save to disk
+# Also filter to only include types with sufficient cells
 def splitData(config):
     adata = read_h5ad(config["adata_path"])
+    
+    # Filter adata to only include types with sufficient cells
+    y_col = config['y_column']
+    y_counts = adata.obs[y_col].value_counts()
+    y_types = y_counts[y_counts >= config['min_cluster_size']].index.tolist()
+    
+    adata_filtered = adata[adata.obs[y_col].isin(y_types)]
+    
     adata_train, adata_val, adata_test = evenClusters(
-        adata, 
-        config['y_column'],
+        adata_filtered, 
+        y_col,
         max_train=config['train_cluster_size'],
         max_val=config['val_cluster_size'], 
         max_test=config['test_cluster_size'],
@@ -33,5 +42,5 @@ if __name__ == "__main__":
     with open(args.config, "r") as f:
         config = json.load(f)
     
-    splitData_old(config)
+    splitData(config)
         

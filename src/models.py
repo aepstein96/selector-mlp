@@ -19,6 +19,12 @@ class MultiClassifier(pl.LightningModule):
         self.accFunc = torchmetrics.Accuracy(task='multiclass', num_classes=num_classes, average='micro')
         self.balanced_accFunc = torchmetrics.Accuracy(task='multiclass', num_classes=num_classes, average='macro')
         
+        # Initialize lists to collect predictions and targets
+        self.val_step_outputs = []
+        self.val_step_targets = []
+        self.train_step_outputs = []
+        self.train_step_targets = []
+        
     # Save model to file
     def save(self, path):
         torch.save(self.net, path)
@@ -30,32 +36,75 @@ class MultiClassifier(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         X, y = batch
         y_pred = self.net(X + self.hparams.noise_std*torch.randn(X.shape, device=self.device))
-        reg_term = self.net.regularize()
-        loss_term = self.lossFunc(y_pred, y)
-        loss = loss_term + self.hparams.alpha * reg_term # Custom regularization term from net
+        penalty_term = self.net.regularize()
+        criterion = nn.CrossEntropyLoss()
+        loss_term = criterion(y_pred, y)
+        loss = loss_term + self.hparams.alpha * penalty_term # Custom regularization term from net
         self.log("train_batch_loss", loss, on_step=True, on_epoch=False)
-        self.log('reg_term', reg_term, on_step=True, on_epoch=False)
+        self.log('penalty_term', penalty_term, on_step=True, on_epoch=False)
         self.log("train_batch_loss_term", loss_term, on_step=True, on_epoch=False)
         return loss
 
     # Validation step - handles both validation and training evaluation
     # Dataloader idx 0: validation. Dataloader idx 1: training (optional)
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        print(f"Model in training mode for validation step: {self.training}")  # Should print False if in eval mode
         X, y = batch
         y_pred = self.net(X)
-        loss = self.lossFunc(y_pred, y)
-        acc = self.accFunc(y_pred, y)
-        multiclass_acc = self.balanced_accFunc(y_pred, y)
+        criterion = nn.CrossEntropyLoss()
+        loss = criterion(y_pred, y)
         
-        if dataloader_idx == 0:
+        if dataloader_idx == 0: # Validation
             self.log('val_eval_loss', loss, on_step=False, on_epoch=True, add_dataloader_idx=False)
-            self.log('val_accuracy', acc, on_step=False, on_epoch=True, add_dataloader_idx=False)
-            self.log('val_multiclass_accuracy', multiclass_acc, on_step=False, on_epoch=True, add_dataloader_idx=False)
-        elif dataloader_idx == 1:
+            self.val_step_outputs.append(y_pred.detach())
+            self.val_step_targets.append(y.detach())
+        elif dataloader_idx == 1: # Training
             self.log('train_eval_loss', loss, on_step=False, on_epoch=True, add_dataloader_idx=False)
-            self.log('train_accuracy', acc, on_step=False, on_epoch=True, add_dataloader_idx=False)
-            self.log('train_multiclass_accuracy', multiclass_acc, on_step=False, on_epoch=True, add_dataloader_idx=False)
+            self.train_step_outputs.append(y_pred.detach())
+            self.train_step_targets.append(y.detach())
+        
+        return {"loss": loss, "preds": y_pred, "targets": y}
+    
+    def on_validation_epoch_end(self):
+        # Calculate accuracy metrics on all validation data at once
+        if self.val_step_outputs:
+            # Ensure all tensors are on the same device (GPU)
+            device = self.device
+            all_val_preds = torch.cat(self.val_step_outputs).to(device)
+            all_val_targets = torch.cat(self.val_step_targets).to(device)
+            
+            # Create fresh metric instances for calculating on all data
+            accFunc = torchmetrics.Accuracy(task='multiclass', num_classes=self.hparams.num_classes, average='micro').to(device)
+            balancedAccFunc = torchmetrics.Accuracy(task='multiclass', num_classes=self.hparams.num_classes, average='macro').to(device)
+            
+            val_accuracy = accFunc(all_val_preds, all_val_targets)
+            val_multiclass_accuracy = balancedAccFunc(all_val_preds, all_val_targets)
+            
+            self.log('val_accuracy', val_accuracy)
+            self.log('val_multiclass_accuracy', val_multiclass_accuracy)
+            
+            # Clear the lists for next epoch
+            self.val_step_outputs.clear()
+            self.val_step_targets.clear()
+        
+        # Do the same for training data if available
+        if self.train_step_outputs:
+            # Ensure all tensors are on the same device (GPU)
+            device = self.device
+            all_train_preds = torch.cat(self.train_step_outputs).to(device)
+            all_train_targets = torch.cat(self.train_step_targets).to(device)
+            
+            accFunc = torchmetrics.Accuracy(task='multiclass', num_classes=self.hparams.num_classes, average='micro').to(device)
+            balancedAccFunc = torchmetrics.Accuracy(task='multiclass', num_classes=self.hparams.num_classes, average='macro').to(device)
+            
+            train_accuracy = accFunc(all_train_preds, all_train_targets)
+            train_multiclass_accuracy = balancedAccFunc(all_train_preds, all_train_targets)
+            
+            self.log('train_accuracy', train_accuracy)
+            self.log('train_multiclass_accuracy', train_multiclass_accuracy)
+            
+            # Clear the lists for next epoch
+            self.train_step_outputs.clear()
+            self.train_step_targets.clear()
             
     # Configure optimizer with hyperparameters
     def configure_optimizers(self):
@@ -79,7 +128,7 @@ class Selector(nn.Module):
             if clamp:
                 self.std = 0.2 # default std for clamped selector
             else:
-                self.std = np.sqrt(num_features) # default std for regular selector
+                self.std = 0.2 # default std for regular selector
             
         self.reset_parameters()
 
@@ -104,7 +153,7 @@ class Selector(nn.Module):
 # MLP with optional feature selection layer
 # Implements a three-layer network with configurable regularization
 class SelectorMLP(nn.Module):
-    def __init__(self, num_features, num_classes, selector_type=None,  batch_norm="true", reg_type='L1', L1_size=512, L2_size=128, L3_size=64, leak_angle=0.2, dropout=0.3):
+    def __init__(self, num_features, num_classes, selector_type=None, penalty="L1", batch_norm="true", L1_size=512, L2_size=128, L3_size=64, leak_angle=0.2, dropout=0.3):
         super().__init__()
 
         # Initialize selector layer based on specified type
@@ -117,7 +166,7 @@ class SelectorMLP(nn.Module):
         else:
             raise ValueError(f"Invalid selector type: {selector_type}")
 
-        self.reg_type = reg_type
+        self.penalty = penalty
 
         # Configure batch normalization layers
         if batch_norm == "true":
@@ -149,12 +198,15 @@ class SelectorMLP(nn.Module):
 
     # Regularize the selector weights
     # Used to minimize the number of features/genes the model depends on
-    def regularize(self):
-        if self.selector is None or self.reg_type is None:
+    def regularize(self, penalty=None):
+        if penalty is None:
+            penalty = self.penalty
+        
+        if self.selector is None or penalty is None:
             return 0
-        elif self.reg_type == 'L1':
+        elif penalty == 'L1':
             return torch.abs(self.selector.weight).sum()
-        elif self.reg_type == 'L2':
+        elif penalty == 'L2':
             return torch.sqrt((self.selector.weight**2).sum())
         else:
-            raise ValueError(f"Invalid regularization type: {self.reg_type}")
+            raise ValueError(f"Invalid regularization type: {penalty}")

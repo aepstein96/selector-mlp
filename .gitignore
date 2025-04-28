@@ -1,14 +1,11 @@
 raw_data/*
-!raw_data/.gitkeep
 checkpoints/*
-
+trained_models/*
 results/*
-!results/.gitkeep
-
-intermediate_files
+intermediate_files/*
 logs/*
-!logs/.gitkeep
-logs_old/*
+old_stuff/*
+sbatch*.sh
 
 *.log
 *.log.*

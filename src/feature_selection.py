@@ -1,17 +1,12 @@
-from sklearn.metrics import log_loss
 import torch
 import numpy as np
 from tqdm import tqdm
-import torchmetrics
-import torch.nn as nn
 import os
 import argparse
 import json
-from utils import getBestCheckpoint
 from models import MultiClassifier
 import pickle
 from anndata import read_h5ad
-from sklearn.svm import SVC
 import pandas as pd
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
 from torchmetrics import Accuracy
@@ -51,7 +46,7 @@ def filterFeaturesSVM(feat_nums, indices, model, X, y):
         X_filtered = np.multiply(X, filter)
         y_pred = model.predict(X_filtered)
         acc = accuracy_score(y, y_pred)
-        per_class_acc = balanced_accuracy_score(y, y_pred, average=None)
+        per_class_acc = balanced_accuracy_score(y, y_pred)
         accs.append(acc)
         per_class_accs.append(per_class_acc)
 
@@ -62,6 +57,7 @@ def filterFeaturesSVM(feat_nums, indices, model, X, y):
 # Filter features using an MLP
 # Returns the accuracy of the model on the filtered data
 def filterFeaturesMLP(feat_nums, indices, model, X, y):
+    model.eval()
     with torch.no_grad():
         accs = []
         per_class_accs = []
@@ -92,32 +88,20 @@ def filterFeaturesMLP(feat_nums, indices, model, X, y):
 
 # Main feature selection test function that evaluates model performance with different feature subsets
 # Compares performance when using top features vs. randomly selected features
-def testFeatureSelection(config):
-    # Load model    
-    if os.path.splitext(config['model_path'])[1] == '.pkl' or os.path.splitext(config['model_path'])[1] == '.pickle':
-        model = pickle.load(open(config['model_path'], 'rb'))
-        
-    elif os.path.splitext(config['model_path'])[1] == '.ckpt':
-        model = MultiClassifier.load_from_checkpoint(config['model_path']).net
-        
-    else:
-        raise ValueError("Invalid model path")
-    
-    # Load data
-    adata = read_h5ad(config['adata_input'])
-    dataset = createDataset(adata, config['y_column'])
-    
-    X, y = dataset.tensors
-    num_classes = len(torch.unique(y))
-    
-    # Perform feature selection (algorithm depends on model type)
-    if isinstance(model, SVC):
-        model_type = "svm"
+def testFeatureSelection(config, model_type, model_path):
+    if model_type == 'svm':
+        model = pickle.load(open(model_path, 'rb'))
         weight_abs = np.abs(model.coef_).sum(axis=0)
         featureSelectionFunction = filterFeaturesSVM
         
-    else:
-        model_type = "SelectorMLP"
+    elif model_type == 'selector_mlp':
+        if os.path.splitext(model_path)[1] == '.ckpt':
+            model = MultiClassifier.load_from_checkpoint(model_path).net
+        else:
+            model = torch.load(model_path)
+            
+        if torch.cuda.is_available():
+            model = model.cuda()
         model.eval()
         with torch.no_grad():
             if model.selector is None: # For an MLP, sum up all of the weights corresponding to each feature
@@ -126,6 +110,14 @@ def testFeatureSelection(config):
                 weight_abs = np.abs(model.selector.weight.cpu().detach().numpy())
         
         featureSelectionFunction = filterFeaturesMLP
+    else:
+        raise ValueError("Invalid model type (must be svm or selector_mlp)")
+    
+    # Load data
+    adata = read_h5ad(config['adata_input'])
+    dataset = createDataset(adata, config['y_column'])
+    
+    X, y = dataset.tensors
     
     # Perform proper feature selection and measure accuracy
     feat_nums = np.arange(0, weight_abs.shape[0], config['group_size'])
@@ -136,34 +128,52 @@ def testFeatureSelection(config):
     accs_random = np.zeros(feat_nums.shape[0])
     per_class_accs_random = np.zeros(feat_nums.shape[0])
     
+    # Run multiple random trials and average results
     for i in range(config['random_reps']):
         idx_random = np.random.permutation(weight_abs.shape[0])
         accs_tmp, per_class_accs_tmp = featureSelectionFunction(feat_nums, idx_random, model, X, y)
         accs_random += accs_tmp
         per_class_accs_random += per_class_accs_tmp
-        
+    
     accs_random /= config['random_reps']
     per_class_accs_random /= config['random_reps']
     
     # Plot and save results
+    print(f"Making plots and saving results to {config['results_dir']}")
     os.makedirs(config['results_dir'], exist_ok=True)
-    print(f"Saving results to {config['results_dir']}")
-    results = pd.DataFrame({'Accuracy (selected features)': accs_sorted, 'Accuracy (random features)': accs_random, 'Mean per-class acc. (selected)': per_class_accs_sorted, 'Mean per-class acc. (random)': per_class_accs_random}, index=feat_nums)
+    results = pd.DataFrame({
+        'Accuracy (selected features)': accs_sorted, 
+        'Accuracy (random features)': accs_random, 
+        'Mean per-class acc. (selected)': per_class_accs_sorted, 
+        'Mean per-class acc. (random)': per_class_accs_random
+    }, index=feat_nums)
     results_plot = plotFeatureSelectionResults(results)
     results_plot.figure.savefig(os.path.join(config['results_dir'], f"{model_type}_feature_selection_results.png"))
     results.to_csv(os.path.join(config['results_dir'], f"{model_type}_feature_selection_results.csv"), index=True)
+    
+    # Obtain, plot and save ranked gene list
+    gene_weights = pd.DataFrame({
+        'gene': adata.var.index[idx_sorted],
+        'weight_abs': weight_abs[idx_sorted],
+        'idx': idx_sorted
+    })
+    gene_weights.to_csv(os.path.join(config['results_dir'], f"{model_type}_ranked_genes.csv"), index=False)
+    gene_weight_plot = gene_weights.plot(y='weight_abs')
+    gene_weight_plot.set_xlabel('Gene index')
+    gene_weight_plot.set_ylabel('Absolute weight')
+    gene_weight_plot.figure.savefig(os.path.join(config['results_dir'], f"{model_type}_ranked_genes.png"))
     print("Results saved")
+    
+    return results, gene_weights
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, default=None, help="Path to the model (.ckpt or .pkl/.pickle file)")
+    parser.add_argument("--model_type", type=str, default=None, help="Model type (svm or selector_mlp)")
     parser.add_argument("--config", type=str, default="configs/feature_selection.json", help="Path to the evaluation configuration file")
     args = parser.parse_args()
     
     with open(args.config, "r") as f:
         config = json.load(f)
     
-    if args.model_path:
-        config['model_path'] = args.model_path
-    
-    testFeatureSelection(config)
+    testFeatureSelection(config, args.model_type, args.model_path)

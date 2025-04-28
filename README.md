@@ -2,66 +2,59 @@
 
 A PyTorch-based feature selection and classification framework for high-dimensional biological data such as single-cell gene expression.
 
-## Introduction
+## About
 
-This is 
+SelectorMLP combines the power of neural networks with feature selection capabilities to identify important features (e.g., genes) in high-dimensional datasets while performing classification tasks. The basic question is, "in a single-cell RNA sequencing dataset, which genes are most important for separating cells by type?" To answer this question, I created a specialized MLP architecture with a feature selection layer. The feature selection layer learns to assign weights to each feature during training, which can be encouraged to be sparse using L1 regularization. Then gene features with highest magnitude weights are assumed to be most important. By sorting the genes by weights, any arbitrary number of features can be selected.
 
-SelectorMLP combines the power of neural networks with feature selection capabilities to identify important features (e.g., genes) in high-dimensional datasets while performing classification tasks. The framework includes:
+![Feature Selection Layer Architecture](docs/architecture.png)
 
-- A specialized MLP architecture with a feature selection layer
 - Comparison with baseline SVM models
 - Tools for evaluating feature importance
 - Support for AnnData objects commonly used in single-cell analysis
 - PyTorch Lightning integration for efficient training
 
+The
+
+This is an updated and refined version of my 2022 final project of my Deep Learning class (CS 5787) at Cornell Tech. 
+
+Originally it was a Colab notebook; I have refactored it for easier installation and use. The original report, which contains much of the original code, is included at docs/report.pdf. The report also includes more information on the model architecture. This version contains all necessary code to train the models shown in the report; for some figures, config files must be altered or additional visualizations produced.
+
+After I completed my project, I encountered a similar solution by Covert *et al.* from Stanford. In addition to the 
+- Their paper: https://www.nature.com/articles/s41467-023-37392-1
+- Their GitHub
+
 ## Installation
 
+First, clone the repository:
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/gene-selector-mlp.git
 cd gene-selector-mlp
+```
 
-# Create conda environment
-conda create -n selector-mlp python=3.9
-conda activate selector-mlp
-
-# Install in development mode
-pip install -e .
-
-# Or install dependencies directly
+Then, install necessary packages. You can use pip with development mode:
+```
+pip install -e .'
+```
+Or install dependencies directly:
+```
 pip install -r requirements.txt
 ```
 
-## Key Components
-
-- **SelectorMLP**: Neural network with a feature selection layer that identifies important features
-- **Data Preprocessing**: Tools for splitting AnnData objects into balanced train/val/test sets
-- **Feature Selection**: Methods to evaluate model performance with varying subsets of features
-- **Visualization**: Functions to plot training metrics and feature selection results
+It's strongly suggested to install all packages in a virtual environment using either venv or conda.
 
 ## Usage
+
+An example workflow using the existing dataset (raw_data/adata.h5ad.gz) is available at example_workflow.sh. The code is reproduced below.
+It consists of several steps:
+- Split the AnnData object into train, validation and test sets using split_data.py (config: config/split_data.json). The splitting process balances classes by putting caps on the number of cells from each class/cluster that can be assigned to each of the train, validation, and test sets. There is also an option min_cluster_size to filter classes that have too few cells.
+- Train SelectorMLP and SVM models on the train and validation sets (config: configs/train.json). Configuration options include training parameters, model parameters, logging, checkpointing, etc. For the SelectorMLP, training loss curves are saved to the corresponding log folder. Best models are also saved to trained_models_dir.
+- Perform feature selection using the trained models.
+
 
 ### Data Preprocessing
 
 Split your AnnData object into train/validation/test sets:
 
-```bash
-python src/split_data.py --config configs/split_data.json
-```
-
-Example configuration (`configs/split_data.json`):
-```json
-{
-    "adata_path": "raw_data/adata.h5ad",
-    "y_column": "Main_cluster_name",
-    "train_cluster_size": 5000,
-    "val_cluster_size": 1000,
-    "test_cluster_size": 1000,
-    "save_dir": "intermediate_files/split_data",
-    "shuffle": true,
-    "shuffle_seed": 42
-}
-```
 
 ### Model Training
 

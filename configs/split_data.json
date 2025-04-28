@@ -1,9 +1,10 @@
 {
-    "adata_path": "raw_data/adata.h5ad",
+    "adata_path": "raw_data/adata.h5ad.gz",
     "y_column": "Main_cluster_name",
     "train_cluster_size": 5000,
     "val_cluster_size": 1000,
     "test_cluster_size": 1000,
+    "min_cluster_size": 500,
     "save_dir": "intermediate_files/split_data",
     "shuffle": true,
     "shuffle_seed": 42
