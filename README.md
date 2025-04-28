@@ -52,4 +52,4 @@ It consists of several steps:
 
 ## License
 
-[MIT License](LICENSE)
+[GNU GPL 3.0](LICENSE)
