@@ -50,6 +50,8 @@ It consists of several steps:
 - Train SelectorMLP and SVM models on the train and validation sets (config: configs/train.json). Configuration options include training parameters, model parameters, logging, checkpointing, etc. For the SelectorMLP, training loss curves are saved to the corresponding log folder. Best models are also saved to trained_models_dir.
 - Perform gene feature selection using the trained models (config: configs/feature_selection.json). The model tests accuracy and mean per-class accuracy on the test set (by default; the validation set can also be used) with different numbers of masked features at intervals specified by the group_size parameter. Features are masked in order of their corresponding weights (features with lowest weights are masked first). It also tests random orderings of features (averaged across several random orderings) for comparison. For both the SVM and the SelectorMLP, ordered feature selection should substantially out-perform random feature selection; the SelectorMLP also out-performs the SVM.
 
+Example output figures identical to the ones this code should generate with the given data and configuration are present in example_figures.
+
 ## License
 
 [GNU GPL 3.0](LICENSE)
