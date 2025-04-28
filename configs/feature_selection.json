@@ -1,6 +1,6 @@
 {
   "model_path": "logs/SelectorMLP/checkpoints/20250424_114616",
-  "adata_input": "intermediate_files/split_data/adata_val.h5ad",
+  "adata_input": "intermediate_files/split_data/adata_test.h5ad",
   "y_column": "Main_cluster_name",
   "group_size": 50,
   "random_reps": 5,

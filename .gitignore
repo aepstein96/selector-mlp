@@ -1,4 +1,3 @@
-raw_data/*
 checkpoints/*
 trained_models/*
 results/*
@@ -13,8 +12,6 @@ sbatch*.sh
 *.err.*
 *.out
 *.out.*
-*.h5ad
-*.h5ad.gz
 *.pt
 *.pkl
 *.csv
