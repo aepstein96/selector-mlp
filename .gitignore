@@ -2,6 +2,7 @@ checkpoints/*
 trained_models/*
 results/*
 intermediate_files/*
+intermediate_files
 logs/*
 old_stuff/*
 sbatch*.sh
