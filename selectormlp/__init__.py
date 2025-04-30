@@ -7,4 +7,4 @@ from .data import createDataset, createSVMDataset, evenClusters, splitData, choo
 from .feature_selection import selectFeaturesSelectorMLP, testFeatureSelection
 from .visualization import plotFeatureSelectionResults, plotTrainingResults
 
-__version__ = "0.1.0" 
+__version__ = "2025.04.30" 

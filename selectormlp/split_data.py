@@ -1,4 +1,4 @@
-from data import evenClusters
+from .data import evenClusters
 import argparse
 import json
 from anndata import read_h5ad

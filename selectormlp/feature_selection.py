@@ -4,14 +4,14 @@ from tqdm import tqdm
 import os
 import argparse
 import json
-from models import MultiClassifier
+from .models import MultiClassifier
 import pickle
 from anndata import read_h5ad
 import pandas as pd
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
 from torchmetrics import Accuracy
-from data import createDataset
-from visualization import plotFeatureSelectionResults
+from .data import createDataset
+from .visualization import plotFeatureSelectionResults
 
 # Select features using a selector MLP
 # Must have a selector layer (will not work with regular MLP)

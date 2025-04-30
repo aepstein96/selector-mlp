@@ -3,14 +3,14 @@ from torch.utils.data import DataLoader
 from anndata import read_h5ad
 from sklearn.svm import LinearSVC
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
-from data import createDataset, createSVMDataset
-from models import MultiClassifier, SelectorMLP
+from .data import createDataset, createSVMDataset
+from .models import MultiClassifier, SelectorMLP
 import pickle
 import json
 import argparse
 import os
 from datetime import datetime
-from visualization import plotTrainingResults
+from .visualization import plotTrainingResults
 import pandas as pd
 import shutil
 import torch

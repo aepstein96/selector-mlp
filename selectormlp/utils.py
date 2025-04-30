@@ -57,7 +57,7 @@ def getBestCheckpoint(folder):
 
 
 # Load configuration from JSON file
-def load_config(config_path='src/config.json'):
+def load_config(config_path='configs/config.json'):
     with open(config_path, 'r') as f:
         config = json.load(f)
     return config
