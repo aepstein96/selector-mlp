@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Exit if any problems occur
+set -e
+set -o pipefail
+set -u
+
 # Data splitting
 echo "Step 1: Splitting the data..."
 python -m selectormlp split_data --config configs/split_data.json

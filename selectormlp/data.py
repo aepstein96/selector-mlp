@@ -1,7 +1,6 @@
 import torch
 from torch.utils.data import TensorDataset
 import numpy as np
-import os
 import scipy.sparse
 
 # Convert AnnData to numpy arrays for SVM processing

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "selectormlp"
-version = "0.1.0"
+version = "2025.05.01"
 description = "A PyTorch-based feature selection and classification framework for high-dimensional biological data"
 readme = "README.md"
 authors = [
@@ -31,5 +31,5 @@ dependencies = [
     "seaborn>=0.12.0",
 ]
 
-[project.urls]
-"Homepage" = "https://github.com/aepstein96/selector-mlp"
+[tool.setuptools]
+packages = ["selectormlp"]

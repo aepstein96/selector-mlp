@@ -31,16 +31,11 @@ git clone https://github.com/yourusername/gene-selector-mlp.git
 cd gene-selector-mlp
 ```
 
-Then, install necessary packages. You can use pip with development mode:
+Then, install SelectorMLP:
+```bash
+pip install -e .
 ```
-pip install -e .'
-```
-Or install dependencies directly:
-```
-pip install -r requirements.txt
-```
-
-It's strongly suggested to install all packages in a virtual environment using either venv or conda.
+It's strongly suggested to install all packages in a virtual environment using either venv or conda. You may need to install the correct version of PyTorch for your system before installing SelectorMLP, as the version that will be installed automatically may not be compatible.
 
 ## Usage
 

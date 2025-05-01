@@ -3,7 +3,6 @@ import torch
 import torch.optim as optim
 import torchmetrics
 import pytorch_lightning as pl
-import numpy as np
 
 # PyTorch Lightning wrapper for SelectorMLP model
 # In theory extensible to other deep multiclass classifiers, but not currently implemented

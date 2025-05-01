@@ -3,7 +3,6 @@ import argparse
 import json
 from anndata import read_h5ad
 import os
-import numpy as np
 # Balancing classes
 
 # Split AnnData object into train/val/test sets with balanced classes and save to disk

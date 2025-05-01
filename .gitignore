@@ -6,7 +6,7 @@ intermediate_files
 logs/*
 old_stuff/*
 sbatch*.sh
-
+*.egg-info/*
 *.log
 *.log.*
 *.err
