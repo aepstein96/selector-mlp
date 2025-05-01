@@ -11,7 +11,6 @@ authors = [
     {name = "Alex Epstein", email = "alexander.epstein96@gmail.com"}
 ]
 requires-python = ">=3.9"
-license = {text = "MIT License"}
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
