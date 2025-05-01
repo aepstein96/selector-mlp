@@ -5,10 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "selectormlp"
 version = "2025.05.01"
-description = "A PyTorch-based feature selection and classification framework for high-dimensional biological data"
+description = "A PyTorch-based feature selection method for single-cell RNA sequencing data"
 readme = "README.md"
 authors = [
-    {name = "Alexander Epstein", email = "alexander.epstein96@gmail.com"}
+    {name = "Alex Epstein", email = "alexander.epstein96@gmail.com"}
 ]
 requires-python = ">=3.9"
 license = {text = "MIT License"}
