@@ -19,7 +19,7 @@ This is an updated and refined version of my 2022 final project of my Deep Learn
 
 Originally it was a Colab notebook; I have refactored it for easier installation and use. The original report, which contains much of the original code, is included at docs/report.pdf. The report also includes more information on the model architecture. This version contains all necessary code to train the models shown in the report; for some figures, config files must be altered or additional visualizations produced.
 
-After I completed my project, I encountered a similar solution by Covert *et al.* They employ a similar supervised method to mine, and also an unsupervised one based on an autoencoder-like structure. They make a few different choices including binarizing the scRNA-seq input data. I encourage you to check out their work as well!
+After I completed my project, I encountered a similar solution, PERSIST, by Covert *et al.* They employ a similar supervised method to mine, and also an unsupervised one based on an autoencoder-like structure. They make a few different choices including binarizing the scRNA-seq input data. I encourage you to check out their work as well!
 - PERSIST publication: https://www.nature.com/articles/s41467-023-37392-1
 - PERSIST GitHub: https://github.com/iancovert/persist
 
